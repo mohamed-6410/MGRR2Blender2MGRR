@@ -524,20 +524,32 @@ class WMB(object):
             # I guess the -1's are split points, and otherwise it continues using the last edge.
             chain = []
             newFaceList = []
+            reverse = True
             for vert in facesRaw:
                 if vert == -1:
                     chain = []
+                    reverse = True
                     continue
                 chain.append(vert)
                 if len(chain) > 3:
                     chain.pop(0)
                 if len(chain) == 3:
+                    reverse = not reverse
+                    if reverse:
+                        chain.reverse()
                     newFaceList.extend(chain)
+                    if reverse:
+                        chain.reverse()
             
+            """
             # okay, that didn't work
             # only got like half the faces
             # maybe I can detect all triangles and generate faces from those...
             # fuck performance, btw. this only has to run once. ever.
+            """
+            # so that's also false, turns out these sickos put backfaces in in the first place.
+            # gotta read the normals...
+            """
             edges = []
             faceEdgePairs = []
             for i in range(0, len(newFaceList), 3):
@@ -564,7 +576,7 @@ class WMB(object):
                         newFace.append(edges[j][0])
                         newFace.append(edges[i][1])
                         newFaceList.extend(newFace)
-            
+            """
             facesRaw = newFaceList
             faceRawCount = len(facesRaw)
             print(len(facesRaw), max(facesRaw))
