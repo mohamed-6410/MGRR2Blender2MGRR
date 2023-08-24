@@ -789,7 +789,7 @@ def get_wmb_material(wmb, texture_dir):
             else:
                 textureFlags = None
             if hasattr(wmb, 'textureArray'): # time to fix this
-                textures = [wmb.textureArray[i.id] for i in textures]
+                textures = [wmb.textureArray[i] for i in textures.values()]
             materials.append([material_name,textures,uniforms,shader_name,technique_name,parameterGroups,textureFlags])
         
     return materials
