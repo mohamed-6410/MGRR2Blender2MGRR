@@ -12,7 +12,7 @@ from ...col.exporter.col_ui_manager import enableCollisionTools
 from ...utils.visibilitySwitcher import enableVisibilitySelector
 from ...utils.util import setExportFieldsFromImportFile
 
-def importDtt(only_extract, filepath):
+def importDtt(only_extract, filepath, transform=None):
     head = os.path.split(filepath)[0]
     tail = os.path.split(filepath)[1]
     tailless_tail = tail[:-4]
@@ -20,12 +20,16 @@ def importDtt(only_extract, filepath):
     extract_dir = os.path.join(head, 'nier2blender_extracted')
     from . import dat_unpacker
     if os.path.isfile(dat_filepath):
-        dat_unpacker.main(dat_filepath, os.path.join(extract_dir, tailless_tail + '.dat'), dat_filepath)   # dat
+        alt_filename = dat_unpacker.main(dat_filepath, os.path.join(extract_dir, tailless_tail + '.dat'), dat_filepath)   # dat
     else:
         print('DAT not found. Only extracting DTT. (No materials, collisions or layouts will automatically be imported)')
 
     last_filename = dat_unpacker.main(filepath, os.path.join(extract_dir, tailless_tail + '.dtt'), filepath)       # dtt
-
+    if last_filename == False: # empty dtt
+        last_filename = alt_filename[:10]
+        # cheating but this is already an error case
+        # (two chars prefix, four chars ID, four chars filetype/discard)
+    
     wmb_filepath = os.path.join(extract_dir, tailless_tail + '.dtt', last_filename[:-4] + '.wmb')
     if not os.path.exists(wmb_filepath):
         wmb_filepath = os.path.join(extract_dir, tailless_tail + '.dat', last_filename[:-4] + '.wmb')                     # if not in dtt, then must be in dat
@@ -64,7 +68,7 @@ def importDtt(only_extract, filepath):
     else:
         # WMB
         from ...wmb.importer import wmb_importer
-        wmb_importer.main(only_extract, wmb_filepath)
+        wmb_importer.main(only_extract, wmb_filepath, transform)
 
     # COL
     col_filepath = os.path.join(extract_dir, tailless_tail + '.dat', tailless_tail + '.col')

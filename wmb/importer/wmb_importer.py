@@ -129,7 +129,7 @@ def construct_mesh(mesh_data, collection_name):
     #  boneWeightInfoArray, boneSetIndex, meshGroupIndex, vertex_colors,
     #  LOD_name, LOD_level, colTreeNodeIndex, unknownWorldDataIndex,
     #  boundingBox, vertexGroupIndex, batchID?, materialArray?,
-    #  boneSet?, vertexStart?, batchGroup?, scr_header?], collection_name
+    #  boneSet?, vertexStart?, batchGroup?, wmb4_transform?], collection_name
     name = mesh_data[0]
     matched_objs = 0
     for obj in bpy.data.objects:
@@ -206,7 +206,7 @@ def construct_mesh(mesh_data, collection_name):
         obj['Materials'] = mesh_data[15]
         obj['VertexIndexStart'] = mesh_data[17]
         if mesh_data[19] is not None: # scr import, TODO expand for props
-            transform = mesh_data[19][2:11]
+            transform = mesh_data[19]
             #print(mesh_data[19])
             obj.location = Vector((transform[0], -transform[2], transform[1]))
             obj.rotation_euler = (math.radians(90) + transform[3], transform[5], transform[4])
@@ -538,7 +538,7 @@ def add_material_to_mesh(mesh, materials , uvs):
     #mesh.hide = True
     mesh.select_set(False)
     
-def format_wmb_mesh(wmb, collection_name, scr_header=None):
+def format_wmb_mesh(wmb, collection_name, wmb4_transform=None):
     meshes = []
     uvMaps = [[], [], [], [], []]
     usedVerticeIndexArrays = []
@@ -678,6 +678,10 @@ def format_wmb_mesh(wmb, collection_name, scr_header=None):
             meshInfo = wmb.clear_unused_vertex(batchData.meshIndex, batch.vertexGroupIndex, True)
             usedVerticeIndexArrays.append(meshInfo[2]) # usedVerticeIndexArray
             
+            # duplicate objects during prop import
+            if collection_name[:6] == mesh.name[:6] and len(collection_name) > 6:
+                mesh.name += collection_name[-4:]
+            
             meshName = "%d-%s"%(batch.vertexGroupIndex, mesh.name)
             
             obj = construct_mesh([
@@ -700,7 +704,7 @@ def format_wmb_mesh(wmb, collection_name, scr_header=None):
                 wmb.boneSetArray[batchData.boneSetsIndex] if batchData.boneSetsIndex > -1 else None, # boneSet
                 meshInfo[5], # vertexStart
                 batch.batchGroup,       # batch group, which of the four supplements
-                scr_header   # header data for SCR transformations
+                wmb4_transform   # header data for SCR transformations
             ], collection_name)
             meshes.append(obj)
     
@@ -784,6 +788,8 @@ def get_wmb_material(wmb, texture_dir):
                 textureFlags = material.textureFlagArray
             else:
                 textureFlags = None
+            if hasattr(wmb, 'textureArray'): # time to fix this
+                textures = [wmb.textureArray[i.id] for i in textures]
             materials.append([material_name,textures,uniforms,shader_name,technique_name,parameterGroups,textureFlags])
         
     return materials
@@ -834,7 +840,7 @@ def import_unknowWorldDataArray(wmb):
         unknownWorldDataDict[unknownWorldDataName] = unknownWorldData.unknownWorldData
     bpy.context.scene['unknownWorldData'] = unknownWorldDataDict
 
-def main(only_extract = False, wmb_file = os.path.join(os.path.split(os.path.realpath(__file__))[0], 'test', 'pl0000.dtt', 'pl0000.wmb'), scr_header = None):
+def main(only_extract = False, wmb_file = os.path.join(os.path.split(os.path.realpath(__file__))[0], 'test', 'pl0000.dtt', 'pl0000.wmb'), wmb4_transform = None):
     #reset_blend()
     wmb = WMB(wmb_file, only_extract)
     wmbname = os.path.split(wmb_file)[-1] # Split only splits into head and tail, but since we want the last part, we don't need to split the head with wmb_file.split(os.sep)
@@ -852,8 +858,15 @@ def main(only_extract = False, wmb_file = os.path.join(os.path.split(os.path.rea
         bpy.context.scene.collection.children.link(wmbCollection)
 
     collection_name = wmbname[:-4]
-
+    if bpy.data.collections.get(collection_name): # oops, duplicate
+        collection_suffix = 1
+        while True:
+            if not bpy.data.collections.get(collection_name + "." + ("%03d" % collection_suffix)):
+                collection_name += "." + ("%03d" % collection_suffix)
+                break
+            collection_suffix += 1
     col = bpy.data.collections.new(collection_name)
+    
     wmbCollection.children.link(col)
     #bpy.context.view_layer.active_layer_collection = bpy.context.view_layer.layer_collection.children[-1]
     
@@ -865,7 +878,7 @@ def main(only_extract = False, wmb_file = os.path.join(os.path.split(os.path.rea
         armature_name = armature_name_split[-1]
         construct_armature(armature_name, boneArray, wmb.firstLevel, wmb.secondLevel, wmb.thirdLevel, wmb.boneMap, wmb.boneSetArray, collection_name)
     
-    meshes, uvs, usedVerticeIndexArrays = format_wmb_mesh(wmb, collection_name, scr_header)
+    meshes, uvs, usedVerticeIndexArrays = format_wmb_mesh(wmb, collection_name, wmb4_transform)
     wmb_materials = get_wmb_material(wmb, texture_dir)
     materials = []
     bpy.context.scene.WTAMaterials.clear()

@@ -1,6 +1,7 @@
 from ...utils.ioUtils import read_uint32, to_uint
 
 DEBUG_WTA_PRINT = False
+goingfast = True
 
 class WTA(object):
     def __init__(self, wta_fp):
@@ -21,16 +22,21 @@ class WTA(object):
             self.unknownArray1 = [0] * self.textureCount
             self.unknownArray2 = []
             print(self.textureCount)
+            wta_fp.seek(self.textureOffsetArrayOffset)
             for i in range(self.textureCount):
-                wta_fp.seek(self.textureOffsetArrayOffset + i * 4)
                 self.wtaTextureOffset[i] = read_uint32(wta_fp)
-                wta_fp.seek(self.textureSizeArrayOffset + i * 4)
-                self.wtaTextureSize[i] =  read_uint32(wta_fp) 
-                wta_fp.seek(self.textureIdentifierArrayOffset + i * 4)
+            wta_fp.seek(self.textureSizeArrayOffset)
+            for i in range(self.textureCount):
+                self.wtaTextureSize[i] =   read_uint32(wta_fp) 
+            wta_fp.seek(self.textureIdentifierArrayOffset)
+            for i in range(self.textureCount):
                 self.wtaTextureIdentifier[i] = "%08x"%read_uint32(wta_fp)
-                wta_fp.seek(self.unknownArrayOffset1 + i * 4)
+            wta_fp.seek(self.unknownArrayOffset1)
+            for i in range(self.textureCount):
                 self.unknownArray1[i] = "%08x"%read_uint32(wta_fp)
-                if DEBUG_WTA_PRINT:
+            
+            if DEBUG_WTA_PRINT:
+                for i in range(self.textureCount):
                     print()
                     print("TEXTURE DATA YEAH BABY")
                     print("Texture pointer:", hex(self.wtaTextureOffset[i]))
@@ -39,10 +45,11 @@ class WTA(object):
                     print("Un fucking known:", self.unknownArray1[i])
                 
             wta_fp.seek(self.unknownArrayOffset2 )
-            unknownval =  (wta_fp.read(4))
-            while unknownval:
-                self.unknownArray2.append(to_uint(unknownval))
+            if not goingfast:
                 unknownval =  (wta_fp.read(4))
+                while unknownval:
+                    self.unknownArray2.append(to_uint(unknownval))
+                    unknownval =  (wta_fp.read(4))
             self.pointer2 = hex(wta_fp.tell())    
     def getTextureByIndex(self, texture_index, texture_fp):
         texture_fp.seek(self.wtaTextureOffset[texture_index])

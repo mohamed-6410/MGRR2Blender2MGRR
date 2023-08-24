@@ -5,10 +5,13 @@ from pathlib import Path
 import shutil
 # Replace the import statement below with the correct path to your WMB importer
 from ...wmb.importer import wmb_importer  # Assuming wmb_importer.py is in root/wmb/importer
+from ...dat_dtt.importer import datImportOperator
 
 class ImportSCR:
     def main(file_path, context):
         print('Beginning export')
+        #print(file_path, context)
+        trueFilePath = file_path # thanks for the var reuse
         head = os.path.split(file_path)[0]
         with open(file_path, 'rb') as f:
             id = f.read(4)
@@ -58,12 +61,71 @@ class ImportSCR:
                         ImportSCR.import_models(file_path, header)  
                         
                 print('SCR extract completed')
+        
+        if os.path.exists(trueFilePath[:-3] + "ly2"):
+            # prop import
+            # bad practice but I'll be, uh, not making an LY2 format
+            ly2 = open(trueFilePath[:-3] + "ly2", "rb")
+            if ly2.read(4) != b'LY2\x00':
+                print("Error in prop load: not LY2 format")
+                return {'FINISHED'}
+            
+            print("Loading props")
+            ly2.seek(8) # yeah we skip the flags
+            propTypeCount = struct.unpack("<I", ly2.read(4))[0]
+            ly2.seek(0x14) # start of main data
+            for i in range(propTypeCount):
+                ly2.read(8) # some flags
+                prop_category = ly2.read(2).decode("ascii")
+                if prop_category not in {"ba", "bh", "bm"}:
+                    print("Prop category (%s) not in data001, skipping" % prop_category)
+                    continue
+                prop_id = "%04x" % struct.unpack("<H", ly2.read(2))[0]
+                prop_name = prop_category + prop_id
+                # for my next trick, I shall escape the Matrix
+                if os.path.exists(head + "/../" + prop_name + ".dat"):
+                    # already extracted to n2b2n_extracted
+                    import_mode = "wmb"
+                    prop_path = head + "/../" + prop_name + ".dat/" + prop_name + ".wmb"
+                elif os.path.exists(head + "/../../../" + prop_category + "/" + prop_name + ".dtt"):
+                    # go up to its original home
+                    import_mode = "dtt"
+                    prop_path = head + "/../../../" + prop_category + "/" + prop_name + ".dtt"
+                else:
+                    # no i'm not making an extra cpk extractor
+                    print("Could not find %s to extract, skipping" % prop_name)
+                    continue
                 
-            return {'FINISHED'}
+                instancesPointer = struct.unpack("<I", ly2.read(4))[0]
+                instancesCount = struct.unpack("<I", ly2.read(4))[0]
+                resumePos = ly2.tell()
+                
+                ly2.seek(instancesPointer)
+                for j in range(instancesCount):
+                    posX, posY, posZ = struct.unpack("<fff", ly2.read(12))
+                    scaleX, scaleY, scaleZ = struct.unpack("<fff", ly2.read(12))
+                    rotX = rotZ = 0 # rotation is weirder
+                    ly2.read(4)
+                    rotY = struct.unpack("BBBB", ly2.read(4))[0]
+                    ly2.read(8)
+                    rotY *= 3.1415926535 / 0x80
+                    prop_transform = [posX, posY, posZ, rotX, rotY, rotZ, scaleX, scaleY, scaleZ]
+                    if import_mode == "dtt":
+                        datImportOperator.importDtt(False, prop_path, prop_transform)
+                    elif import_mode == "wmb":
+                        wmb_importer.main(False, prop_path, prop_transform)
+                    
+                
+                ly2.seek(resumePos)
+                
+            
+            ly2.close()
+        
+        return {'FINISHED'}
 
     @staticmethod
     def import_models(file_path, scr_header):
-            wmb_importer.main(False, file_path, scr_header)
+            wmb_importer.main(False, file_path, scr_header[2:11])
 
 def reset_blend():
     #bpy.ops.object.mode_set(mode='OBJECT')
