@@ -28,7 +28,7 @@ def reset_blend():
         bpy.data.objects.remove(obj)
         obj.user_clear()
 
-def construct_armature(name, bone_data_array, firstLevel, secondLevel, thirdLevel, boneMap, boneSetArray, collection_name):            # bone_data =[boneIndex, boneName, parentIndex, parentName, bone_pos, optional, boneNumber, localPos, local_rotation, world_rotation, world_position_tpose]
+def construct_armature(name, bone_data_array, firstLevel, secondLevel, thirdLevel, boneMap, boneSetArray, collection_name, transform=None):            # bone_data =[boneIndex, boneName, parentIndex, parentName, bone_pos, optional, boneNumber, localPos, local_rotation, world_rotation, world_position_tpose]
     print('[+] importing armature')
     amt = bpy.data.armatures.new(name +'Amt')
     ob = bpy.data.objects.new(name, amt)
@@ -87,6 +87,10 @@ def construct_armature(name, bone_data_array, firstLevel, secondLevel, thirdLeve
     
     bpy.ops.object.mode_set(mode='OBJECT')
     ob.rotation_euler = (math.radians(90),0,0)
+    if transform is not None:
+        ob.location = Vector((transform[0], -transform[2], transform[1]))
+        ob.rotation_euler = (math.radians(90) + transform[3], transform[5], transform[4])
+        ob.scale = Vector((transform[6], transform[8], transform[7]))
     
     # split armature
     return ob
@@ -153,7 +157,7 @@ def construct_mesh(mesh_data, collection_name):
     if not name in bpy.data.objects.keys(): 
         obj = bpy.data.objects.new(name, objmesh)
     else:
-        obj = bpy.data.objects[name]
+        obj = bpy.data.objects[name] # what??
     obj.location = Vector((0,0,0))
     bpy.data.collections.get(collection_name).objects.link(obj)
     objmesh.from_pydata(vertices, [], faces)
@@ -205,7 +209,7 @@ def construct_mesh(mesh_data, collection_name):
         # can't ditch these two, they're used later during import
         obj['Materials'] = mesh_data[15]
         obj['VertexIndexStart'] = mesh_data[17]
-        if mesh_data[19] is not None: # scr import, TODO expand for props
+        if mesh_data[19] is not None: # scr import
             transform = mesh_data[19]
             #print(mesh_data[19])
             obj.location = Vector((transform[0], -transform[2], transform[1]))
@@ -332,7 +336,10 @@ def construct_materials(texture_dir, material, material_index=-1):
             albedo_image = nodes.new(type='ShaderNodeTexImage')
             albedo_nodes.append(albedo_image)
             albedo_image.location = 0,i*-60
-            albedo_image.image = bpy.data.images.load(texture_file)
+            if bpy.data.images.get(textureID + ".dds") is None:
+                albedo_image.image = bpy.data.images.load(texture_file)
+            else:
+                albedo_image.image = bpy.data.images.get(textureID + ".dds")
             albedo_image.hide = True
                 
             invert_shader = nodes.new(type="ShaderNodeInvert")
@@ -358,10 +365,10 @@ def construct_materials(texture_dir, material, material_index=-1):
     organic = shader_name[0:3] in {"eye", "har", "skn"}
     if len(albedo_nodes) == 1 or (organic and len(albedo_nodes) >= 1):
         albedo_principled = links.new(albedo_nodes[0].outputs['Color'], principled.inputs['Base Color'])
-        if shader_name[4] == "0" and not organic:
+        if shader_name[3:5] == "00" and not organic:
             glossy_in_link = links.new(albedo_nodes[0].outputs['Alpha'], albedo_invert_nodes[0].inputs['Color'])
             rough_link = links.new(albedo_invert_nodes[0].outputs['Color'], principled.inputs['Roughness'])
-        else:
+        elif shader_name[4] != "0":
             alpha_link = links.new(albedo_nodes[0].outputs['Alpha'], principled.inputs['Alpha'])
     elif len(albedo_mixRGB_nodes) > 0:
         # first mixer node has two input albedos
@@ -394,7 +401,10 @@ def construct_materials(texture_dir, material, material_index=-1):
             mask_image = nodes.new(type='ShaderNodeTexImage')
             mask_nodes.append(mask_image)
             mask_image.location = 0, ((len(albedo_maps)+1)*-60)-i*60
-            mask_image.image = bpy.data.images.load(texture_file)
+            if bpy.data.images.get(textureID + ".dds") is None:
+                mask_image.image = bpy.data.images.load(texture_file)
+            else:
+                mask_image.image = bpy.data.images.get(textureID + ".dds")
             mask_image.image.colorspace_settings.name = 'Non-Color'
             mask_image.hide = True
             if i > 0:
@@ -431,7 +441,10 @@ def construct_materials(texture_dir, material, material_index=-1):
             normal_image = nodes.new(type='ShaderNodeTexImage')
             normal_nodes.append(normal_image)
             normal_image.location = 0, (len(albedo_maps)+1 + len(mask_maps)+1 + i) * -60
-            normal_image.image = bpy.data.images.load(texture_file)
+            if bpy.data.images.get(textureID + ".dds") is None:
+                normal_image.image = bpy.data.images.load(texture_file)
+            else:
+                normal_image.image = bpy.data.images.get(textureID + ".dds")
             normal_image.image.colorspace_settings.name = 'Non-Color'
             normal_image.hide = True
             if i > 0:
@@ -472,7 +485,10 @@ def construct_materials(texture_dir, material, material_index=-1):
             curvature_image = nodes.new(type='ShaderNodeTexImage')
             curvature_nodes.append(curvature_image)
             curvature_image.location = -600, ((len(albedo_maps)+1)*-60)-i*60+50
-            curvature_image.image = bpy.data.images.load(texture_file)
+            if bpy.data.images.get(textureID + ".dds") is None:
+                curvature_image.image = bpy.data.images.load(texture_file)
+            else:
+                curvature_image.image = bpy.data.images.get(textureID + ".dds")
             curvature_image.hide = True
             if i > 0:
                 curvature_image.label = "g_CurvatureMap" + str(i-1)
@@ -678,11 +694,12 @@ def format_wmb_mesh(wmb, collection_name, wmb4_transform=None):
             meshInfo = wmb.clear_unused_vertex(batchData.meshIndex, batch.vertexGroupIndex, True)
             usedVerticeIndexArrays.append(meshInfo[2]) # usedVerticeIndexArray
             
-            # duplicate objects during prop import
-            if collection_name[:6] == mesh.name[:6] and len(collection_name) > 6:
-                mesh.name += collection_name[-4:]
             
             meshName = "%d-%s"%(batch.vertexGroupIndex, mesh.name)
+            # duplicate objects during prop import
+            # TODO make less hacky (ba0010.002 is ten chars)
+            if collection_name[-4] == "." and collection_name[-3:].isnumeric():
+                meshName += collection_name[-4:]
             
             obj = construct_mesh([
                 meshName,    # meshName
@@ -879,7 +896,7 @@ def main(only_extract = False, wmb_file = os.path.join(os.path.split(os.path.rea
         armature_no_wmb = wmbname.replace('.wmb','')
         armature_name_split = armature_no_wmb.split('/')
         armature_name = armature_name_split[-1]
-        construct_armature(armature_name, boneArray, wmb.firstLevel, wmb.secondLevel, wmb.thirdLevel, wmb.boneMap, wmb.boneSetArray, collection_name)
+        construct_armature(armature_name, boneArray, wmb.firstLevel, wmb.secondLevel, wmb.thirdLevel, wmb.boneMap, wmb.boneSetArray, collection_name, wmb4_transform)
     
     meshes, uvs, usedVerticeIndexArrays = format_wmb_mesh(wmb, collection_name, wmb4_transform)
     wmb_materials = get_wmb_material(wmb, texture_dir)
