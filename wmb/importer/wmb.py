@@ -753,7 +753,7 @@ class wmb4_boneSet(object):
     def read(self, wmb_fp):
         super(wmb4_boneSet, self).__init__()
         self.pointer = read_uint32(wmb_fp)
-        self.count = read_uint32(wmb_fp)
+        self.count = struct.unpack("<I", wmb_fp.read(4))[0] # what part of big endian is confusing here
         self.boneSet = load_data_array(wmb_fp, self.pointer, self.count, uint8)
         if DEBUG_BONESET_PRINT:
             print("Count:", self.count, "Data:", self.boneSet)
@@ -921,7 +921,7 @@ class wmb4_vertexGroup(object):
         self.unknownArray = load_data_array(wmb_fp, self.unknownPointer, self.unknownCount, uint32)
         # mercifully empty
         
-        self.faceRawArray = load_data_array(wmb_fp, self.faceIndexesPointer, self.faceIndexesCount, uint16)
+        self.faceRawArray = load_data_array(wmb_fp, self.faceIndexesPointer, self.faceIndexesCount, int16)
         
         self.vertexFlags = None # <trollface>
 
@@ -1399,6 +1399,33 @@ class WMB(object):
         vertex_colors = []
         
         facesRaw = vertexGroup.faceRawArray[faceRawStart : faceRawStart + faceRawCount ]
+        
+        if wmb4 and (-1 in facesRaw):
+            # they compressed the faces... somehow. Something about edges.
+            # I guess the -1's are split points, and otherwise it continues using the last edge.
+            chain = []
+            newFaceList = []
+            reverse = False
+            for vert in facesRaw:
+                if vert == -1:
+                    chain = []
+                    reverse = False
+                    continue
+                chain.append(vert)
+                if len(chain) > 3:
+                    chain.pop(0)
+                if len(chain) == 3:
+                    if reverse:
+                        chain.reverse()
+                    newFaceList.extend(chain)
+                    if reverse:
+                        chain.reverse()
+                    reverse = not reverse
+            
+            facesRaw = newFaceList
+            faceRawCount = len(facesRaw)
+            print(len(facesRaw), max(facesRaw))
+        
         if not wmb4:
             facesRaw = [index - 1 for index in facesRaw]
         usedVertexIndexArray = sorted(list(set(facesRaw))) # oneliner to remove duplicates
@@ -1423,7 +1450,9 @@ class WMB(object):
         for i in range(0, faceRawCount, 3):
             faces[int(i/3)] = ( facesRaw[i], facesRaw[i + 1], facesRaw[i + 2] )
         meshVertices = vertexGroup.vertexArray[vertexStart : vertexStart + vertexCount]
-
+        
+        print(vertexCount)
+        print(max(usedVertexIndexArray))
         if self.hasBone:
             boneWeightInfos = [0] * len(usedVertexIndexArray)
         for newIndex, i in enumerate(usedVertexIndexArray):

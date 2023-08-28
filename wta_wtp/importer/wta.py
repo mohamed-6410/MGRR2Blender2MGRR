@@ -6,7 +6,7 @@ class WTA(object):
     def __init__(self, wta_fp):
         super(WTA, self).__init__()
         self.magicNumber = wta_fp.read(4)
-        if self.magicNumber == b'WTB\x00':
+        if self.magicNumber in {b'WTB\x00', b'\x00BTW'}: # there's always a bigger endianness
             self.unknown04 = read_uint32(wta_fp)
             self.textureCount = read_uint32(wta_fp)
             self.textureOffsetArrayOffset = read_uint32(wta_fp)
