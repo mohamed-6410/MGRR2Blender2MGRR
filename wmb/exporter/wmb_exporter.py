@@ -120,6 +120,10 @@ def main(filepath, wmb4=False):
 
         print('Writing meshes.')
         create_wmb_meshes(wmb_file, generated_data, True)
+        
+        if generated_data.mystery is not None:
+            print("God help us, writing that absurd mystery chunk.")
+            create_wmb_mystery(wmb_file, generated_data)
 
     print('Finished writing. Closing file..')
     close_wmb(wmb_file, generated_data)

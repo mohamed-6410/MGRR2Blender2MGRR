@@ -1177,6 +1177,180 @@ class c_meshMaterials(object):
                             batchInfo[4] = meshMat_index
                             break
 
+class c_mystery(object): # wmb4
+    def __init__(self, mysteryPointer):
+        def mystery1(offset, values):
+            mysteryValues = []
+            currentOffset = offset
+            currentOffset += 8 * len(values)
+            if (currentOffset % 16) > 0:
+                currentOffset += 16 - (currentOffset % 16)
+            for vals in values:
+                appendVal = vals
+                appendVal["offsetName"] = currentOffset
+                currentOffset += len(vals["name"]) + 1
+                mysteryValues.append(appendVal)
+            
+            return {"size": currentOffset - offset, "content": mysteryValues}
+                
+        def mystery2(offset, values):
+            mysteryValues = []
+            currentOffset = offset
+            currentOffset += 60 * len(values)
+            for vals in values:
+                appendVal = vals
+                mysteryValues.append(appendVal)
+            return {"size": currentOffset - offset, "content": mysteryValues}
+                
+        def mystery3(offset, values):
+            # ik ik it's incomprehensible
+            mysteryValues = []
+            currentOffset = offset
+            vectorGroups = []
+            for i, vals in enumerate(values):
+                vectorGroups.append([])
+                for j in range(int(len(vals)/4)):
+                    vectorGroups[-1].append([[], [], [], []])
+                for key, val in vals.items():
+                    splitkey = key.split("-")
+                    j = int(splitkey[0])
+                    k = int(splitkey[1])
+                    vectorGroups[i][j][k] = list(val)
+                    #print(key)
+                #print(vectorGroups[-1])
+            currentOffset += 8 * len(vectorGroups)
+            if (currentOffset % 16) > 0:
+                currentOffset += 16 - (currentOffset % 16)
+            for vals in vectorGroups:
+                appendVal = {}
+                appendVal["content"] = vals
+                appendVal["offset"] = currentOffset
+                currentOffset += 64 * len(vals) # 4 vector4's/group
+                mysteryValues.append(appendVal)
+            return {"size": currentOffset - offset, "content": mysteryValues}
+                
+        def mystery4(offset, values):
+            mysteryValues = []
+            currentOffset = offset
+            currentOffset += 60 * len(values)
+            for vals in values:
+                appendVal = vals
+                appendVal["offset"] = currentOffset if (len(vals["E"]) > 0) else 0
+                currentOffset += 4 * len(vals["E"])
+                mysteryValues.append(appendVal)
+            
+            if (currentOffset % 16) > 0:
+                currentOffset += 16 - (currentOffset % 16)
+            return {"size": currentOffset - offset, "content": mysteryValues}
+                
+        def mystery5(offset, values):
+            mysteryValues = []
+            currentOffset = offset
+            mysteryD = []
+            newValues = []
+            for vals in values:
+                newValues.append({"D": []})
+                for key, val in vals.items():
+                    splitkey = key.split("-")
+                    if splitkey[0] == "D":
+                        i = int(splitkey[1])
+                        while len(newValues[-1]["D"]) < i + 1:
+                            newValues[-1]["D"].append([])
+                        newValues[-1]["D"][i] = val
+                    else:
+                        newValues[-1][key] = val
+            
+            currentOffset += 20 * len(newValues)
+            for vals in newValues:
+                appendVal = vals
+                appendVal["offset"] = currentOffset
+                currentOffset += 8 * len(vals["D"])
+                if (currentOffset % 16) > 0:
+                    currentOffset += 16 - (currentOffset % 16)
+                appendVal["offsetTwo"] = []
+                for nums in vals["D"]:
+                    appendVal["offsetTwo"].append(currentOffset)
+                    currentOffset += 2 * len(nums)
+                    if (currentOffset % 16) > 0:
+                        currentOffset += 16 - (currentOffset % 16)
+                mysteryValues.append(appendVal)
+            return {"size": currentOffset - offset, "content": mysteryValues}
+                
+        def mystery6(offset, values):
+            mysteryValues = []
+            currentOffsetA = offset
+            currentOffsetA += 16 * len(values)
+            currentOffsetB = currentOffsetA
+            for vals in values:
+                currentOffsetB += 4 * len(vals["A"])
+            for vals in values:
+                appendVal = vals
+                appendVal["offsetA"] = currentOffsetA
+                currentOffsetA += 4 * len(vals["A"]) # float
+                appendVal["offsetB"] = currentOffsetB
+                currentOffsetB += 2 * len(vals["B"]) # short
+                mysteryValues.append(appendVal)
+            return {"size": currentOffsetB - offset, "content": mysteryValues}
+                
+        def mystery7(offset, values):
+            mysteryValues = []
+            currentOffset = offset
+            currentOffset += 48 * len(values)
+            for vals in values:
+                appendVal = vals
+                mysteryValues.append(appendVal)
+            return {"size": currentOffset - offset, "content": mysteryValues}
+                
+        def mystery8(offset, values):
+            mysteryValues = []
+            currentOffset = offset
+            currentOffset += 88 * len(values)
+            for vals in values:
+                appendVal = vals
+                mysteryValues.append(appendVal)
+            return {"size": currentOffset - offset, "content": mysteryValues}
+                
+        def mystery9(offset, values):
+            mysteryValues = []
+            currentOffset = offset
+            currentOffset += 12 * len(values)
+            for vals in values:
+                appendVal = vals
+                mysteryValues.append(appendVal)
+            return {"size": currentOffset - offset, "content": mysteryValues}
+                
+        
+        blendervals = [[], [], [], [], [], [], [], [], []]
+        for key, value in bpy.data.collections['WMB'].items():
+            if key[0].isnumeric():
+                splitkey = key.split("-")
+                i = int(splitkey.pop(0)) - 1
+                j = int(splitkey.pop(0))
+                while len(blendervals[i]) < j + 1:
+                    blendervals[i].append({})
+                shortname = "-".join(splitkey)
+                blendervals[i][j][shortname] = value
+        
+        self.mysteryOffsets = [0] * 9
+        self.mysteryCounts = [len(x) for x in blendervals]
+        self.mysterySizes = [0] * 9
+        self.mystery = []
+        mysteryFuncs = [mystery1, mystery2, mystery3, mystery4, mystery5, mystery6, mystery7, mystery8, mystery9]
+        for i in range(9):
+            if i == 0:
+                self.mysteryOffsets[i] = mysteryPointer + 9 * 8
+                if (self.mysteryOffsets[i] % 16) > 0:
+                    self.mysteryOffsets[i] += 16 - (self.mysteryOffsets[i] % 16)
+            else:
+                self.mysteryOffsets[i] = self.mysteryOffsets[i-1] + self.mysterySizes[i-1]
+            self.mystery.append(mysteryFuncs[i](self.mysteryOffsets[i], blendervals[i]))
+            self.mysterySizes[i] = self.mystery[i]["size"]
+        for i in range(9):
+            if self.mysteryCounts[i] == 0:
+                self.mysteryOffsets[i] = 0
+        self.mystery_StructSize = self.mysteryOffsets[-1] + self.mysterySizes[-1] - mysteryPointer
+        
+
 class c_textures(object): # wmb4
     def __init__(self, texturesPointer, materials):
         self.textures = []
@@ -1997,3 +2171,10 @@ class c_generate_data(object):
                 for mesh in self.meshes.meshes:
                     mesh.numBones = 0
             
+            if "mystery" in bpy.data.collections['WMB'] and bpy.data.collections['WMB']["mystery"]:
+                self.mystery_Offset = currentOffset #0xf32a2 for Sundowner testing
+                self.mystery = c_mystery(self.mystery_Offset)
+                currentOffset += self.mystery.mystery_StructSize
+            else:
+                self.mystery_Offset = 0
+                self.mystery = None
