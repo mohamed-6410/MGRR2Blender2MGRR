@@ -20,7 +20,7 @@ def importDtt(only_extract, filepath):
     extract_dir = os.path.join(head, 'nier2blender_extracted')
     from . import dat_unpacker
     if os.path.isfile(dat_filepath):
-        alt_filepath = dat_unpacker.main(dat_filepath, os.path.join(extract_dir, tailless_tail + '.dat'), dat_filepath)   # dat
+        alt_filename = dat_unpacker.main(dat_filepath, os.path.join(extract_dir, tailless_tail + '.dat'), dat_filepath)   # dat
     else:
         print('DAT not found. Only extracting DTT. (No materials, collisions or layouts will automatically be imported)')
     
