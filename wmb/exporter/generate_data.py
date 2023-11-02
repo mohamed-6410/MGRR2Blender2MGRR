@@ -854,10 +854,11 @@ class c_material(object):
 
         self.unknown1 = 1                           # This probably also the same mostly
 
-        self.offsetTextures = self.offsetTechniqueName + len(self.b_material['Technique_Name']) + 1
         if wmb4:
             self.offsetTextures = self.offsetShaderName + len(self.b_material['Shader_Name'])
             self.offsetTextures += 16 - (self.offsetTextures % 16)
+        else:
+            self.offsetTextures = self.offsetTechniqueName + len(self.b_material['Technique_Name']) + 1
 
         self.textures = get_textures(self, self.b_material, self.offsetTextures)
         if wmb4:
