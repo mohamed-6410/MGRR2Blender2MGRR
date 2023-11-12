@@ -884,8 +884,9 @@ class c_material(object):
         self.name = self.b_material.name
 
         self.shaderName = self.b_material['Shader_Name']
-
-        self.techniqueName = self.b_material['Technique_Name']
+        
+        if not wmb4:
+            self.techniqueName = self.b_material['Technique_Name']
         
         self.materialNames_StructSize = self.offsetVariables + get_variables_StructSize(self, self.variables) - self.offsetName
         print(self.offsetShaderName, self.offsetTextures, self.offsetParameterGroups, self.materialNames_StructSize)
