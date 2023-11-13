@@ -27,7 +27,7 @@ class WTA(object):
                 wta_fp.seek(self.textureSizeArrayOffset + i * 4)
                 self.wtaTextureSize[i] =  read_uint32(wta_fp) 
                 wta_fp.seek(self.textureIdentifierArrayOffset + i * 4)
-                self.wtaTextureIdentifier[i] = "%08x"%read_uint32(wta_fp)
+                self.wtaTextureIdentifier[i] = str(read_uint32(wta_fp))
                 wta_fp.seek(self.unknownArrayOffset1 + i * 4)
                 self.unknownArray1[i] = "%08x"%read_uint32(wta_fp)
                 if DEBUG_WTA_PRINT:
