@@ -988,7 +988,10 @@ class c_mesh(object):
                     for vertexGroup in mesh.vertex_groups:
                         boneName = getBoneIndexByName("WMB", vertexGroup.name)
                         if boneName not in bones:
-                            bones.append(boneName)
+                            if boneName is None:
+                                bones.append(0xff)
+                            else:
+                                bones.append(boneName)
                             numBones += 1
             if len(bones) == 0:
                 bones.append(0)
