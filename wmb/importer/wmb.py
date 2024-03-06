@@ -1455,8 +1455,8 @@ class WMB(object):
                             print("...nevermind that's way too much to print")
                             print("(They go up to %d)" % max([max(vertexes.boneIndices) for vertexes in meshVertices]))
                             print("But the bone set (#%d) only has %d bones." % (bonesetIndex, len(boneSet)))
-                            print("How terrible! Time to crash.")
-                            assert False
+                            print("How terrible! Time to crash.\n")
+                            assert False # See console above about missing boneset elements
                     boneWeightInfos[newIndex] = [boneIndices, meshVertices[i].boneWeights]
                     s = sum(meshVertices[i].boneWeights)
                     if s > 1.000000001 or s < 0.999999:
