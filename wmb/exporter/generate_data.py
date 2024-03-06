@@ -315,6 +315,7 @@ class c_b_boneSets(object):
                         vertex_group_bones.append(boneMapIndex)
                 vertex_group_bones = sorted(vertex_group_bones)
                 print(vertex_group_bones)
+                assert len(vertex_group_bones) > 0 # This mesh has no bone weights, it should have a boneSetIndex of -1
                 if vertex_group_bones not in b_boneSets:
                     #if wmb4:
                     #    if len(b_boneSets) <= obj["boneSetIndex"]:
