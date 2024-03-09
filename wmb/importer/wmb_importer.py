@@ -5,6 +5,7 @@ import bmesh
 import math
 from typing import List, Tuple
 from mathutils import Vector, Matrix
+from .bonenames import wmb4_bonenames
 
 from ...utils.util import ShowMessageBox, getPreferences, printTimings
 from .wmb import *
@@ -937,16 +938,27 @@ def main(only_extract = False, wmb_file = os.path.join(os.path.split(os.path.rea
                 #print(mesh.name, materialIndex)
                 add_material_to_mesh(mesh, [materials[materialIndex]], uvMaps)
     
+    amt = None
     if wmb.hasBone:
         amt = bpy.data.objects.get(armature_name)
-    if wmb.hasBone:
         for mesh in meshes:
             set_partent(amt,mesh)
-    if wmb4: # batchgroup sets some meshes as shadow only or low-LOD
+    if wmb4:
+        # batchgroup sets some meshes as shadow only or low-LOD
         for obj in [x for x in col.all_objects if x.type == "MESH"]:
             if obj['batchGroup'] > 0:
                 obj.hide_set(True)
                 obj.hide_render = True
+        # more descriptive bone names where possible
+        if amt is not None:
+            for bone in amt.data.bones:
+                if bone["ID"] in wmb4_bonenames:
+                    oldBoneName = bone.name
+                    bone.name = wmb4_bonenames[bone["ID"]]
+                    for mesh in [x for x in col.objects if x.type == "MESH"]:
+                        for vertexGroup in [y for y in mesh.vertex_groups if y.name == oldBoneName]:
+                            vertexGroup.name = wmb4_bonenames[bone["ID"]]
+            
     if wmb.hasColTreeNodes:
         import_colTreeNodes(wmb, col)
     if wmb.hasUnknownWorldData:
