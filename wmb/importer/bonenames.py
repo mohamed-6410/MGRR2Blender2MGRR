@@ -21,7 +21,17 @@ wmb4_bonenames = {
     19: "upper_leg_L",
     20: "lower_leg_L",
     21: "foot_L",
-    22: "toe_L"
+    22: "toe_L",
+    
+    1024: "jaw",
+    1078: "eyebrow_L",
+    1091: "eyebrow_R",
+    1104: "eye_L",
+    1106: "eye_R",
+    1122: "nostril_L",
+    1136: "upper_teeth",
+    1138: "nostril_R",
+    1139: "tongue"
 }
 # not gonna duplicate this for both hands
 fingers = {
