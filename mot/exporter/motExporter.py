@@ -123,6 +123,8 @@ def makeBezierInterpolation(animObj: AnimationObject, record: MotRecord, transfo
 			inHandle.x /= xDist
 			# determine hermit vector
 			rightVec = inHandle * 3
+			if rightVec.x == 0:
+				rightVec.x = -0.0001
 			# calculate slope
 			rightSlope = rightVec.y / rightVec.x
 			# set slope
