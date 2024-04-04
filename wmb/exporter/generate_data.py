@@ -172,8 +172,15 @@ class c_boneIndexTranslateTable(object):
         # Populate the third level
         for i, bone in enumerate(getAllBonesInOrder("WMB")):
             if 'ID' not in bone:
-                continue
-            boneID = bone['ID']         
+                # Attempt to assign ID from name
+                for key in wmb4_bonenames:
+                    if wmb4_bonenames[key] == bone.name:
+                        bone['ID'] = key
+                        break
+                if 'ID' not in bone: # none found, generate it later
+                    continue
+            
+            boneID = bone['ID']
             for k, domain in enumerate(thirdLevelRanges):
                 if boneID >= domain and boneID < domain + 16:
                     newThirdLevel[k * 16 + boneID - domain] = i
@@ -360,15 +367,8 @@ class c_bones(object):
 
             if numBones > 1:
                 for bone in getAllBonesInOrder("WMB"):
-                    if 'ID' in bone:
-                        ID = bone['ID']
-                    else:
-                        ID = -1
-                        for key in wmb4_bonenames:
-                            if wmb4_bonenames[key] == bone.name:
-                                ID = key
-                                break
-                        assert ID != -1 # Bone ID was not present in custom properties and name did not match
+                    assert 'ID' in bone # This should have been assigned in the bone index translate table
+                    ID = bone['ID']
                     
                     if bone.parent:
                         parentIndex = getAllBonesInOrder("WMB").index(bone.parent)
