@@ -305,7 +305,8 @@ class c_b_boneSets(object):
                 boneMap.append(val)
         
         # Assign base values for boneSetIndex
-        for obj in allMeshes:
+        allmeshes = [x for x in bpy.data.collections['WMB'].all_objects if x.type == 'MESH']
+        for obj in allmeshes:
             if 'boneSetIndex' in obj:
                 continue
             
@@ -317,7 +318,6 @@ class c_b_boneSets(object):
         
         # Get boneSets
         b_boneSets = []
-        allmeshes = [x for x in bpy.data.collections['WMB'].all_objects if x.type == 'MESH']
         allmeshes = sorted(allmeshes, key=lambda x: x['boneSetIndex'])
         for obj in allmeshes:
             vertex_group_bones = []
