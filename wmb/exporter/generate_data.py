@@ -3,6 +3,7 @@ from ...utils.util import *
 import bpy, math
 from mathutils import Vector
 from time import time
+from ..importer.bonenames import wmb4_bonenames
 # these two are for bones
 import numpy as np
 import mathutils as mu
@@ -314,7 +315,7 @@ class c_b_boneSets(object):
                         boneMapIndex = boneMap.index(boneID) if not wmb4 else boneID
                         vertex_group_bones.append(boneMapIndex)
                 vertex_group_bones = sorted(vertex_group_bones)
-                print(vertex_group_bones)
+                print(obj.name, vertex_group_bones)
                 assert len(vertex_group_bones) > 0 # This mesh has no bone weights, it should have a boneSetIndex of -1
                 if vertex_group_bones not in b_boneSets:
                     #if wmb4:
@@ -359,7 +360,15 @@ class c_bones(object):
 
             if numBones > 1:
                 for bone in getAllBonesInOrder("WMB"):
-                    ID = bone['ID']
+                    if 'ID' in bone:
+                        ID = bone['ID']
+                    else:
+                        ID = -1
+                        for key in wmb4_bonenames:
+                            if wmb4_bonenames[key] == bone.name:
+                                ID = key
+                                break
+                        assert ID != -1 # Bone ID was not present in custom properties and name did not match
                     
                     if bone.parent:
                         parentIndex = getAllBonesInOrder("WMB").index(bone.parent)
