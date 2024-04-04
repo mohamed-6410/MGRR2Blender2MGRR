@@ -1720,7 +1720,8 @@ class c_vertexGroups(object):
         for obj in allMeshes:
             if 'ID' not in obj:
                 obj['ID'] = 900
-            obj['ID'] += 1000 * obj['batchGroup'] # make sure it's sorted by batch group
+            if 'batchGroup' in obj:
+                obj['ID'] += 1000 * obj['batchGroup'] # make sure it's sorted by batch group
         
         allIDs = sorted([obj['ID'] for obj in allMeshes])
         allMeshes = sorted(allMeshes, key=lambda batch: batch['ID']) # sort
