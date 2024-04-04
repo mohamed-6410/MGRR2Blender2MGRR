@@ -304,10 +304,16 @@ class c_b_boneSets(object):
             for val in amt.data['boneMap']:
                 boneMap.append(val)
         
-        #fuck it
-        #if wmb4:
-        #    return
-        
+        # Assign base values for boneSetIndex
+        for obj in allMeshes:
+            if 'boneSetIndex' in obj:
+                continue
+            
+            if len(obj.vertex_groups) == 0:
+                obj['boneSetIndex'] = -1
+                continue
+            
+            obj['boneSetIndex'] = 99 # recalculated below
         
         # Get boneSets
         b_boneSets = []
@@ -1725,7 +1731,34 @@ class c_vertexGroups(object):
         print("New IDs generated:")
         print([(obj.name, obj['ID']) for obj in allMeshes])
         
-
+        # And mesh group IDs (grouping is based on name)
+        maxMeshGroupID = -1
+        meshesWithNoMeshGroup = []
+        meshGroupIDsByName = {}
+        for obj in allMeshes:
+            if 'meshGroupIndex' not in obj:
+                meshesWithNoMeshGroup.append(obj)
+                continue
+            
+            meshGroupIDsByName[getRealName(obj.name)] = obj['meshGroupIndex']
+            if obj['meshGroupIndex'] > maxMeshGroupID:
+                maxMeshGroupID = obj['meshGroupIndex']
+        
+        for obj in meshesWithNoMeshGroup:
+            if getRealName(obj.name) in meshGroupIDsByName:
+                obj['meshGroupIndex'] = meshGroupIDsByName[getRealName(obj.name)]
+                continue
+            
+            maxMeshGroupID += 1
+            obj['meshGroupIndex'] = maxMeshGroupID
+            meshGroupIDsByName[getRealName(obj.name)] = obj['meshGroupIndex']
+        
+        print("New mesh group IDs generated:")
+        print([(obj.name, obj['meshGroupIndex']) for obj in allMeshes])
+        
+        # Bone set indexes handled earlier by c_b_boneSets
+        
+        
         def get_vertexGroups(self, offsetVertexGroups):
             vertexGroupIndex = []
 
