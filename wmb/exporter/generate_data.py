@@ -1440,6 +1440,8 @@ class c_vertexGroup(object):
         def get_vertexesData(self):
             vertexes = []
             vertexesExData = []
+            # used for child constraints, define here to optimize
+            amt = [x for x in allObjectsInCollectionInOrder('WMB') if x.type == "ARMATURE"][0]
             for bvertex_obj in blenderVertices:
                 bvertex_obj_obj = bvertex_obj[1]
                 print('   [>] Generating vertex data for object', bvertex_obj_obj.name)
@@ -1450,6 +1452,12 @@ class c_vertexGroup(object):
                     boneSet = get_boneSet(self, bvertex_obj_obj["boneSetIndex"])
                 
                 previousIndex = -1
+                
+                # used for child constraints, again
+                bone = None
+                if wmb4 and bvertex_obj_obj.constraints["Child Of"]:
+                    bone = amt.data.bones[bvertex_obj_obj.constraints["Child Of"].subtarget]
+                
                 for loop in sorted_loops:
                     if loop.vertex_index == previousIndex:
                         continue
@@ -1459,6 +1467,11 @@ class c_vertexGroup(object):
                     bvertex = bvertex_obj[0][loop.vertex_index]
                     # XYZ Position
                     position = [bvertex.co.x, bvertex.co.y, bvertex.co.z]
+                    
+                    if bone:
+                        position[0] -= bone.head_local.x
+                        position[1] -= bone.head_local.y
+                        position[2] -= bone.head_local.z
 
                     # Tangents
                     loopTangent = loop.tangent * 127
