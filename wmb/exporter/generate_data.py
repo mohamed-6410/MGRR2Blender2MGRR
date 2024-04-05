@@ -166,8 +166,7 @@ class c_boneIndexTranslateTable(object):
         # Generate empty table
         newThirdLevel = []
         for val in thirdLevelRanges:
-            for i in range(16):
-                newThirdLevel.append(0xfff)
+            newThirdLevel.extend([0xfff] * 16)
         
         # Populate the third level
         for i, bone in enumerate(getAllBonesInOrder("WMB")):
@@ -181,10 +180,14 @@ class c_boneIndexTranslateTable(object):
                     continue
             
             boneID = bone['ID']
+            foundAny = False
             for k, domain in enumerate(thirdLevelRanges):
                 if boneID >= domain and boneID < domain + 16:
                     newThirdLevel[k * 16 + boneID - domain] = i
+                    foundAny = True
                     break
+            if not foundAny:
+                print("Didn't find anywhere to insert the ID %d (animation ID %d" % (i, boneID))
 
         # Temp here for Baal # what's Baal
         newBones = []
@@ -1685,7 +1688,14 @@ class c_vertexGroup(object):
 
             return indexes
 
-        self.vertexSize = 32 if wmb4 else 28
+        self.vertexSize = 24 if wmb4 else 28
+        if wmb4:
+            if vertexFormat & 0x30 == 0x30:
+                self.vertexSize += 8
+            if vertexFormat in {0x10307, 0x10107}:
+                self.vertexSize += 4
+            if vertexFormat == 0x10307:
+                self.vertexSize += 4
 
         self.vertexOffset = self.vertexGroupStart                       
         self.vertexExDataOffset = self.vertexOffset + numVertices * self.vertexSize
@@ -1808,6 +1818,19 @@ class c_vertexGroups(object):
             return vertexGroupsSize
 
         self.vertexGroups_StructSize = get_vertexGroupsSize(self, self.vertexGroups)
+
+def get_referenceBone(vertexFormat):
+    if vertexFormat != 0x107:
+        return -1
+    first_obj = [x for x in bpy.data.collections['WMB'].all_objects if x.type == 'MESH'][0]
+    if not first_obj.constraints["Child Of"]:
+        return -1
+    bone_name = first_obj.constraints["Child Of"].subtarget
+    amt = [x for x in bpy.data.collections['WMB'].all_objects if x.type == 'ARMATURE'][0]
+    for i, bone in enumerate(amt.pose.bones):
+        if bone.name == bone_name:
+            return i
+    return -1
 
 
 
@@ -1982,6 +2005,7 @@ class c_generate_data(object):
         else:
             
             self.vertexFormat = bpy.data.collections['WMB']['vertexFormat']
+            self.referenceBone = get_referenceBone(self.vertexFormat)
 
             self.vertexGroups_Offset = currentOffset
             self.vertexGroups = c_vertexGroups(self.vertexGroups_Offset, True)

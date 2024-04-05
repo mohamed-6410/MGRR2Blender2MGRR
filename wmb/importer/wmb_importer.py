@@ -891,7 +891,7 @@ def main(only_extract = False, wmb_file = os.path.join(os.path.split(os.path.rea
     #bpy.context.view_layer.active_layer_collection = bpy.context.view_layer.layer_collection.children[-1]
     
     texture_dir = wmb_file.replace(wmbname, 'textures')
-    if hasattr(wmb, 'hasBone') and wmb.hasBone:
+    if wmb.hasBone:
         boneArray = [[bone.boneIndex, "bone%d"%bone.boneIndex, bone.parentIndex,"bone%d"%bone.parentIndex, bone.world_position, bone.world_rotation, bone.boneNumber, bone.local_position, bone.local_rotation, bone.world_rotation, bone.world_position_tpose] for bone in wmb.boneArray]
         armature_no_wmb = wmbname.replace('.wmb','')
         armature_name_split = armature_no_wmb.split('/')
@@ -938,9 +938,8 @@ def main(only_extract = False, wmb_file = os.path.join(os.path.split(os.path.rea
                 #print(mesh.name, materialIndex)
                 add_material_to_mesh(mesh, [materials[materialIndex]], uvMaps)
     
-    amt = None
-    if wmb.hasBone:
-        amt = bpy.data.objects.get(armature_name)
+    amt = bpy.data.objects.get(armature_name)
+    if amt is not None:
         for mesh in meshes:
             set_partent(amt,mesh)
     if wmb4:
@@ -951,6 +950,15 @@ def main(only_extract = False, wmb_file = os.path.join(os.path.split(os.path.rea
                 obj.hide_render = True
         # more descriptive bone names where possible
         if amt is not None:
+            if wmb.wmb_header.vertexFormat == 0x107: # wmb.wmb_header.referenceBone != -1
+                for mesh in meshes:
+                    setchild = mesh.constraints.new(type='CHILD_OF')
+                    setchild.inverse_matrix = Matrix.Identity(4)
+                    setchild.use_rotation_x = False
+                    setchild.use_rotation_y = False
+                    setchild.use_rotation_z = False
+                    setchild.target = amt
+                    setchild.subtarget = amt.pose.bones[wmb.wmb_header.referenceBone].name
             for bone in amt.data.bones:
                 if bone["ID"] in wmb4_bonenames:
                     oldBoneName = bone.name
@@ -958,6 +966,8 @@ def main(only_extract = False, wmb_file = os.path.join(os.path.split(os.path.rea
                     for mesh in [x for x in col.objects if x.type == "MESH"]:
                         for vertexGroup in [y for y in mesh.vertex_groups if y.name == oldBoneName]:
                             vertexGroup.name = wmb4_bonenames[bone["ID"]]
+        else:
+            print("Huh, no armature. hasBone is", wmb.hasBone)
             
     if wmb.hasColTreeNodes:
         import_colTreeNodes(wmb, col)
