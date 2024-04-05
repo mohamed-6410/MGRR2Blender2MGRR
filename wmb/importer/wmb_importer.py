@@ -953,12 +953,17 @@ def main(only_extract = False, wmb_file = os.path.join(os.path.split(os.path.rea
             if wmb.wmb_header.vertexFormat == 0x107: # wmb.wmb_header.referenceBone != -1
                 for mesh in meshes:
                     setchild = mesh.constraints.new(type='CHILD_OF')
-                    setchild.inverse_matrix = Matrix.Identity(4)
-                    setchild.use_rotation_x = False
-                    setchild.use_rotation_y = False
-                    setchild.use_rotation_z = False
                     setchild.target = amt
-                    setchild.subtarget = amt.pose.bones[wmb.wmb_header.referenceBone].name
+                    setchild.influence = 0.0
+                    bpy.ops.object.mode_set(mode='EDIT')
+                    bone = amt.data.edit_bones[wmb.wmb_header.referenceBone]
+                    setchild.subtarget = bone.name
+                    mesh.location.x = bone.head.x
+                    mesh.location.y = -bone.head.z
+                    mesh.location.z = bone.head.y
+                    bpy.ops.object.mode_set(mode='OBJECT')
+                    # Shift in object mode to preserve positions in edit mode
+                    
             for bone in amt.data.bones:
                 if bone["ID"] in wmb4_bonenames:
                     oldBoneName = bone.name
