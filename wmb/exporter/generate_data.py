@@ -1455,7 +1455,7 @@ class c_vertexGroup(object):
                 
                 # used for child constraints, again
                 bone = None
-                if wmb4 and bvertex_obj_obj.constraints["Child Of"]:
+                if wmb4 and "Child Of" in bvertex_obj_obj.constraints:
                     bone = amt.data.bones[bvertex_obj_obj.constraints["Child Of"].subtarget]
                 
                 for loop in sorted_loops:
