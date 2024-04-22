@@ -3,6 +3,7 @@ from ...utils.util import *
 import bpy, math
 from mathutils import Vector
 from time import time
+from ..importer.bonenames import wmb4_bonenames
 # these two are for bones
 import numpy as np
 import mathutils as mu
@@ -66,7 +67,7 @@ class c_batch_supplements(object): # wmb4
             batchDatum[1] = batch['meshGroupIndex']
             batchDatum[2] = batch.material_slots[0].material['ID']
             batchDatum[3] = batch['boneSetIndex']
-            if not batch['batchGroup'] or batch['batchGroup'] < 0:
+            if 'batchGroup' not in batch or batch['batchGroup'] < 0:
                 batch['batchGroup'] = 0
             self.batchData[batch['batchGroup']].append(batchDatum)
         
@@ -165,18 +166,28 @@ class c_boneIndexTranslateTable(object):
         # Generate empty table
         newThirdLevel = []
         for val in thirdLevelRanges:
-            for i in range(16):
-                newThirdLevel.append(0xfff)
+            newThirdLevel.extend([0xfff] * 16)
         
         # Populate the third level
         for i, bone in enumerate(getAllBonesInOrder("WMB")):
             if 'ID' not in bone:
-                continue
-            boneID = bone['ID']         
+                # Attempt to assign ID from name
+                for key in wmb4_bonenames:
+                    if wmb4_bonenames[key] == bone.name:
+                        bone['ID'] = key
+                        break
+                if 'ID' not in bone: # none found, generate it later
+                    continue
+            
+            boneID = bone['ID']
+            foundAny = False
             for k, domain in enumerate(thirdLevelRanges):
                 if boneID >= domain and boneID < domain + 16:
                     newThirdLevel[k * 16 + boneID - domain] = i
+                    foundAny = True
                     break
+            if not foundAny:
+                print("Didn't find anywhere to insert the ID %d (animation ID %d" % (i, boneID))
 
         # Temp here for Baal # what's Baal
         newBones = []
@@ -296,14 +307,20 @@ class c_b_boneSets(object):
             for val in amt.data['boneMap']:
                 boneMap.append(val)
         
-        #fuck it
-        #if wmb4:
-        #    return
-        
+        # Assign base values for boneSetIndex
+        allmeshes = [x for x in bpy.data.collections['WMB'].all_objects if x.type == 'MESH']
+        for obj in allmeshes:
+            if 'boneSetIndex' in obj:
+                continue
+            
+            if len(obj.vertex_groups) == 0:
+                obj['boneSetIndex'] = -1
+                continue
+            
+            obj['boneSetIndex'] = 99 # recalculated below
         
         # Get boneSets
         b_boneSets = []
-        allmeshes = [x for x in bpy.data.collections['WMB'].all_objects if x.type == 'MESH']
         allmeshes = sorted(allmeshes, key=lambda x: x['boneSetIndex'])
         for obj in allmeshes:
             vertex_group_bones = []
@@ -314,7 +331,8 @@ class c_b_boneSets(object):
                         boneMapIndex = boneMap.index(boneID) if not wmb4 else boneID
                         vertex_group_bones.append(boneMapIndex)
                 vertex_group_bones = sorted(vertex_group_bones)
-                print(vertex_group_bones)
+                print(obj.name, vertex_group_bones)
+                assert len(vertex_group_bones) > 0 # This mesh has no bone weights, it should have a boneSetIndex of -1
                 if vertex_group_bones not in b_boneSets:
                     #if wmb4:
                     #    if len(b_boneSets) <= obj["boneSetIndex"]:
@@ -358,6 +376,7 @@ class c_bones(object):
 
             if numBones > 1:
                 for bone in getAllBonesInOrder("WMB"):
+                    assert 'ID' in bone # This should have been assigned in the bone index translate table
                     ID = bone['ID']
                     
                     if bone.parent:
@@ -423,7 +442,14 @@ class c_bones(object):
                 bone = getAllBonesInOrder("WMB")[0]
                 ID = bone['ID']
                 parentIndex = -1
-                localPosition = Vector3(bone['localPosition'][0], bone['localPosition'][1], bone['localPosition'][2])
+                
+                #localPosition = Vector3(bone['localPosition'][0], bone['localPosition'][1], bone['localPosition'][2])
+                trans = bone.head - mu.Vector([0, 0, 0])
+                localPosition = [0, 0, 0]
+                localPosition[0] = trans[0]
+                localPosition[1] = trans[1]
+                localPosition[2] = trans[2] # or list()?
+                
                 localRotation = Vector3(0, 0, 0) # I haven't seen anything here besides 0, 0, 0.
                 localScale = Vector3(1, 1, 1) # Same here but 1, 1, 1. Makes sense. Bones don't "really" have scale.
 
@@ -434,7 +460,7 @@ class c_bones(object):
                 tPosition = localPosition
 
                 blenderName = bone.name
-                bone = [ID, parentIndex, localPosition.xyz, localRotation.xyz, localScale.xyz, position.xyz, rotation.xyz, scale.xyz, tPosition.xyz, blenderName]
+                bone = [ID, parentIndex, localPosition, localRotation.xyz, localScale.xyz, position, rotation.xyz, scale.xyz, tPosition, blenderName]
                 _bones.append(bone)
 
             return _bones
@@ -988,7 +1014,10 @@ class c_mesh(object):
                     for vertexGroup in mesh.vertex_groups:
                         boneName = getBoneIndexByName("WMB", vertexGroup.name)
                         if boneName not in bones:
-                            bones.append(boneName)
+                            if boneName is None:
+                                bones.append(0xff)
+                            else:
+                                bones.append(boneName)
                             numBones += 1
             if len(bones) == 0:
                 bones.append(0)
@@ -1411,6 +1440,8 @@ class c_vertexGroup(object):
         def get_vertexesData(self):
             vertexes = []
             vertexesExData = []
+            # used for child constraints, define here to optimize
+            amt = [x for x in allObjectsInCollectionInOrder('WMB') if x.type == "ARMATURE"][0]
             for bvertex_obj in blenderVertices:
                 bvertex_obj_obj = bvertex_obj[1]
                 print('   [>] Generating vertex data for object', bvertex_obj_obj.name)
@@ -1421,6 +1452,12 @@ class c_vertexGroup(object):
                     boneSet = get_boneSet(self, bvertex_obj_obj["boneSetIndex"])
                 
                 previousIndex = -1
+                
+                # used for child constraints, again
+                bone = None
+                if wmb4 and "Child Of" in bvertex_obj_obj.constraints:
+                    bone = amt.data.bones[bvertex_obj_obj.constraints["Child Of"].subtarget]
+                
                 for loop in sorted_loops:
                     if loop.vertex_index == previousIndex:
                         continue
@@ -1430,6 +1467,11 @@ class c_vertexGroup(object):
                     bvertex = bvertex_obj[0][loop.vertex_index]
                     # XYZ Position
                     position = [bvertex.co.x, bvertex.co.y, bvertex.co.z]
+                    
+                    if bone:
+                        position[0] -= bone.head_local.x
+                        position[1] -= bone.head_local.y
+                        position[2] -= bone.head_local.z
 
                     # Tangents
                     loopTangent = loop.tangent * 127
@@ -1659,7 +1701,14 @@ class c_vertexGroup(object):
 
             return indexes
 
-        self.vertexSize = 32 if wmb4 else 28
+        self.vertexSize = 24 if wmb4 else 28
+        if wmb4:
+            if vertexFormat & 0x30 == 0x30:
+                self.vertexSize += 8
+            if vertexFormat in {0x10307, 0x10107}:
+                self.vertexSize += 4
+            if vertexFormat == 0x10307:
+                self.vertexSize += 4
 
         self.vertexOffset = self.vertexGroupStart                       
         self.vertexExDataOffset = self.vertexOffset + numVertices * self.vertexSize
@@ -1694,7 +1743,8 @@ class c_vertexGroups(object):
         for obj in allMeshes:
             if 'ID' not in obj:
                 obj['ID'] = 900
-            obj['ID'] += 1000 * obj['batchGroup'] # make sure it's sorted by batch group
+            if 'batchGroup' in obj:
+                obj['ID'] += 1000 * obj['batchGroup'] # make sure it's sorted by batch group
         
         allIDs = sorted([obj['ID'] for obj in allMeshes])
         allMeshes = sorted(allMeshes, key=lambda batch: batch['ID']) # sort
@@ -1705,7 +1755,34 @@ class c_vertexGroups(object):
         print("New IDs generated:")
         print([(obj.name, obj['ID']) for obj in allMeshes])
         
-
+        # And mesh group IDs (grouping is based on name)
+        maxMeshGroupID = -1
+        meshesWithNoMeshGroup = []
+        meshGroupIDsByName = {}
+        for obj in allMeshes:
+            if 'meshGroupIndex' not in obj:
+                meshesWithNoMeshGroup.append(obj)
+                continue
+            
+            meshGroupIDsByName[getRealName(obj.name)] = obj['meshGroupIndex']
+            if obj['meshGroupIndex'] > maxMeshGroupID:
+                maxMeshGroupID = obj['meshGroupIndex']
+        
+        for obj in meshesWithNoMeshGroup:
+            if getRealName(obj.name) in meshGroupIDsByName:
+                obj['meshGroupIndex'] = meshGroupIDsByName[getRealName(obj.name)]
+                continue
+            
+            maxMeshGroupID += 1
+            obj['meshGroupIndex'] = maxMeshGroupID
+            meshGroupIDsByName[getRealName(obj.name)] = obj['meshGroupIndex']
+        
+        print("New mesh group IDs generated:")
+        print([(obj.name, obj['meshGroupIndex']) for obj in allMeshes])
+        
+        # Bone set indexes handled earlier by c_b_boneSets
+        
+        
         def get_vertexGroups(self, offsetVertexGroups):
             vertexGroupIndex = []
 
@@ -1754,6 +1831,19 @@ class c_vertexGroups(object):
             return vertexGroupsSize
 
         self.vertexGroups_StructSize = get_vertexGroupsSize(self, self.vertexGroups)
+
+def get_referenceBone(vertexFormat):
+    if vertexFormat != 0x107:
+        return -1
+    first_obj = [x for x in bpy.data.collections['WMB'].all_objects if x.type == 'MESH'][0]
+    if not first_obj.constraints["Child Of"]:
+        return -1
+    bone_name = first_obj.constraints["Child Of"].subtarget
+    amt = [x for x in bpy.data.collections['WMB'].all_objects if x.type == 'ARMATURE'][0]
+    for i, bone in enumerate(amt.pose.bones):
+        if bone.name == bone_name:
+            return i
+    return -1
 
 
 
@@ -1928,6 +2018,7 @@ class c_generate_data(object):
         else:
             
             self.vertexFormat = bpy.data.collections['WMB']['vertexFormat']
+            self.referenceBone = get_referenceBone(self.vertexFormat)
 
             self.vertexGroups_Offset = currentOffset
             self.vertexGroups = c_vertexGroups(self.vertexGroups_Offset, True)

@@ -47,6 +47,8 @@ class WMBCopyMaterialJSON(bpy.types.Operator):
     bl_label = "Copy Material JSON"
     
     def execute(self, context):
+        if "wmb_mat_as_json" not in bpy.context.material:
+            WMBMaterialToJSON.execute(self, context)
         bpy.context.window_manager.clipboard = bpy.context.material["wmb_mat_as_json"]
         return {'FINISHED'}
 

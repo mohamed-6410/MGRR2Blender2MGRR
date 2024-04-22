@@ -233,10 +233,7 @@ def create_wmb_header(wmb_file, data, wmb4=False):
         write_uInt32(wmb_file, data.vertexFormat)
         
         write_Int16(wmb_file, 0 if data.numBones > 0 else -1) # TODO should be unsigned?
-        if data.vertexFormat > 0x107: # TODO more precise
-            write_Int16(wmb_file, -1)
-        else:
-            write_Int16(wmb_file, 0)
+        write_Int16(wmb_file, data.referenceBone) # -1 on anything with weights or no bones, only for solid meshes like Sam's mask
         
         boundingBoxXYZ, boundingBoxUVW = getGlobalBoundingBox()
         write_xyz(wmb_file, boundingBoxXYZ) # boundingBox: x y z 

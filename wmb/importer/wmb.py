@@ -14,7 +14,7 @@ DEBUG_VERTEXGROUP_PRINT = False
 #DEBUG_VERTEX_PRINT = # Don't even *think* about it.
 DEBUG_BATCHES_PRINT = False
 DEBUG_BATCHSUPPLEMENT_PRINT = True
-DEBUG_BONE_PRINT = False # do not recommend, there can be lots of bones
+DEBUG_BONE_PRINT = True # do not recommend, there can be lots of bones
 DEBUG_BITT_PRINT = False # nothing at all
 DEBUG_BONESET_PRINT = False
 DEBUG_MATERIAL_PRINT = True
@@ -76,8 +76,8 @@ class WMB_Header(object):
         elif self.magicNumber == b'WMB4':
             self.version = "%08x" % (read_uint32(wmb_fp))
             self.vertexFormat = read_uint32(wmb_fp)             # Vertex data format, ex. 0x137
-            self.referenceBone = read_uint16(wmb_fp)
-            self.flags = read_int16(wmb_fp)                     # flags & referenceBone
+            self.flags = read_uint16(wmb_fp)
+            self.referenceBone = read_int16(wmb_fp)             # flags & referenceBone
             
             self.bounding_box1 = read_float(wmb_fp)             # bounding_box pos 1
             self.bounding_box2 = read_float(wmb_fp)                     
@@ -1457,8 +1457,8 @@ class WMB(object):
                             print("...nevermind that's way too much to print")
                             print("(They go up to %d)" % max([max(vertexes.boneIndices) for vertexes in meshVertices]))
                             print("But the bone set (#%d) only has %d bones." % (bonesetIndex, len(boneSet)))
-                            print("How terrible! Time to crash.")
-                            assert False
+                            print("How terrible! Time to crash.\n")
+                            assert False # See console above about missing boneset elements
                     boneWeightInfos[newIndex] = [boneIndices, meshVertices[i].boneWeights]
                     s = sum(meshVertices[i].boneWeights)
                     if s > 1.000000001 or s < 0.999999:
@@ -1466,6 +1466,8 @@ class WMB(object):
                         print(meshVertices[i].boneWeights) 
                 else:
                     self.hasBone = False
+        if wmb4:
+            return usedVertices, faces, usedVertexIndexArray, boneWeightInfos, vertex_colors, vertexStart, vertexCount
         return usedVertices, faces, usedVertexIndexArray, boneWeightInfos, vertex_colors, vertexStart
 
 def load_data(wmb_fp, pointer, chunkClass, other=None):

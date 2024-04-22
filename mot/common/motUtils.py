@@ -1,8 +1,12 @@
 from __future__ import annotations
 from dataclasses import dataclass
+from math import atan, tan
 from typing import Callable
 import bpy
 from mathutils import Vector
+
+cameraId = 0x7000
+camTargetId = 0x7001
 
 class KeyFrame:
 	interpolationType: str
@@ -54,6 +58,53 @@ def getArmatureObject() -> bpy.types.Object:
 		return allArmatures[0]
 	return armaturesInWmbColl[0]
 
+def getCameraObject(constructIfMissing: bool) -> bpy.types.Object|None:
+	activeObj = bpy.context.active_object
+	if activeObj is not None and activeObj.type == "CAMERA" and activeObj.name.startswith("MOT Camera"):
+		return activeObj
+	collection: bpy.types.Collection = bpy.data.collections.get("MOT")
+	if collection:
+		cameras = [
+			obj
+			for obj in collection.all_objects
+			if obj.type == "CAMERA" and obj.name.startswith("MOT Camera")
+		]
+		if len(cameras) > 0:
+			return cameras[0]
+	elif constructIfMissing:
+		collection = bpy.data.collections.new("MOT")
+		bpy.context.scene.collection.children.link(collection)
+	if not constructIfMissing:
+		return None
+	cam = bpy.data.objects.new("MOT Camera", bpy.data.cameras.new("Camera"))
+	trackingConstraint = cam.constraints.new("TRACK_TO")
+	trackingConstraint.target = getCameraTarget(True)
+	collection.objects.link(cam)
+	return cam
+
+def getCameraTarget(constructIfMissing: bool) -> bpy.types.Object|None:
+	activeObj = bpy.context.active_object
+	if activeObj is not None and activeObj.type == "EMPTY" and activeObj.name.startswith("MOT Camera Target"):
+		return activeObj
+	collection: bpy.types.Collection = bpy.data.collections.get("MOT")
+	if collection:
+		target = [
+			obj
+			for obj in collection.all_objects
+			if obj.type == "EMPTY" and obj.name.startswith("MOT Camera Target")
+		]
+		if len(target) > 0:
+			return target[0]
+	elif constructIfMissing:
+		collection = bpy.data.collections.new("MOT")
+		bpy.context.scene.collection.children.link(collection)
+	if not constructIfMissing:
+		return None
+	target = bpy.data.objects.new("MOT Camera Target", None)
+	target.empty_display_size = 0.15
+	collection.objects.link(target)
+	return target
+
 def getBoneFCurve(armatureObj: bpy.types.Object, bone: bpy.types.PoseBone, property: str, index: int) -> bpy.types.FCurve:
 	for fCurve in armatureObj.animation_data.action.fcurves:
 		if fCurve.data_path == f"pose.bones[\"{bone.name}\"].{property}" and fCurve.array_index == index:
@@ -94,3 +145,13 @@ def hermitVecToBezierVec(vec: Vector) -> Vector:
 
 def alignTo4(num: int) -> int:
 	return (num + 3) & ~3
+
+def fovToFocalLength(camData, fovRad: float) -> float:
+	fovRad *=  16 / 9
+	sensorSize = max(camData.sensor_width, camData.sensor_height)
+	return sensorSize / (2 * tan(fovRad / 2))
+
+def focalLengthToFov(camData, focalLength: float) -> float:
+	sensorSize = max(camData.sensor_width, camData.sensor_height)
+	fovRad = 2 * atan(sensorSize / (2 * focalLength))
+	return fovRad / 16 * 9
