@@ -1756,7 +1756,7 @@ class c_vertexGroups(object):
         print([(obj.name, obj['ID']) for obj in allMeshes])
         
         # And mesh group IDs (grouping is based on name)
-        maxMeshGroupID = -1
+        allMeshGroupIDs = set()
         meshesWithNoMeshGroup = []
         meshGroupIDsByName = {}
         for obj in allMeshes:
@@ -1765,16 +1765,17 @@ class c_vertexGroups(object):
                 continue
             
             meshGroupIDsByName[getRealName(obj.name)] = obj['meshGroupIndex']
-            if obj['meshGroupIndex'] > maxMeshGroupID:
-                maxMeshGroupID = obj['meshGroupIndex']
+            allMeshGroupIDs.add(obj['meshGroupIndex'])
         
         for obj in meshesWithNoMeshGroup:
             if getRealName(obj.name) in meshGroupIDsByName:
                 obj['meshGroupIndex'] = meshGroupIDsByName[getRealName(obj.name)]
                 continue
             
-            maxMeshGroupID += 1
-            obj['meshGroupIndex'] = maxMeshGroupID
+            i = 0
+            while i in allMeshGroupIDs:
+                i += 1
+            obj['meshGroupIndex'] = i
             meshGroupIDsByName[getRealName(obj.name)] = obj['meshGroupIndex']
         
         print("New mesh group IDs generated:")
