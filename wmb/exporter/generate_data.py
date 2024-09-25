@@ -10,9 +10,7 @@ import mathutils as mu
 
 def getRealName(name):
     splitname = name.split('-')
-    splitname.pop(0)
-    splitname.pop()
-    return '-'.join(splitname)
+    return '-'.join(splitname[1:-1])
 
 class c_batch(object):
     def __init__(self, obj, vertexGroupIndex, indexStart, prev_numVertexes, boneSetIndex, vertexStart=0):
@@ -1775,7 +1773,7 @@ class c_vertexGroups(object):
                 obj['ID'] = 900
             if 'batchGroup' in obj:
                 obj['ID'] += 1000 * obj['batchGroup'] # make sure it's sorted by batch group
-            obj['ID'] += i # thwart meshes with the same ID
+            obj['ID'] += i # thwart meshes with the same ID, might technically change some ordering
         
         allIDs = sorted([obj['ID'] for obj in allMeshes])
         allMeshes = sorted(allMeshes, key=lambda batch: batch['ID']) # sort
@@ -1795,6 +1793,16 @@ class c_vertexGroups(object):
                 meshesWithNoMeshGroup.append(obj)
                 continue
             
+            if getRealName(obj.name) in meshGroupIDsByName: # already have it?
+                if meshGroupIDsByName[getRealName(obj.name)] == obj['meshGroupIndex']:
+                    continue # already have it
+                
+                # you go into the regeneration chamber
+                del obj['meshGroupIndex']
+                meshesWithNoMeshGroup.append(obj)
+                continue
+            
+            # ok let's add it to the 'already handled' group
             meshGroupIDsByName[getRealName(obj.name)] = obj['meshGroupIndex']
             allMeshGroupIDs.add(obj['meshGroupIndex'])
         
@@ -1813,6 +1821,20 @@ class c_vertexGroups(object):
         print([(obj.name, obj['meshGroupIndex']) for obj in allMeshes])
         
         # Bone set indexes handled earlier by c_b_boneSets
+        
+        # Material indexes lfg
+        # first, I made this helper function regenerate all the IDs, so we can just...
+        getUsedMaterials()
+        # don't even have to do anything with it, the IDs on the materials are good now
+        for obj in allMeshes:
+            if 'Materials' not in obj:
+                obj['Materials'] = [-1]
+            matCount = len(obj.material_slots)
+            if matCount > 0:
+                firstMat = obj.material_slots[0].material
+                obj['Materials'][0] = firstMat['ID']
+            else:
+                obj['Materials'][0] = 0 # idk probably safe-ish
         
         
         def get_vertexGroups(self, offsetVertexGroups):
