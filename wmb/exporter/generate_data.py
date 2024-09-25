@@ -1456,6 +1456,8 @@ class c_vertexGroup(object):
                 if wmb4 and "Child Of" in bvertex_obj_obj.constraints:
                     bone = amt.data.bones[bvertex_obj_obj.constraints["Child Of"].subtarget]
                 
+                missingBones = set()
+                
                 for loop in sorted_loops:
                     if loop.vertex_index == previousIndex:
                         continue
@@ -1538,6 +1540,7 @@ class c_vertexGroup(object):
                             boneGroupName = bvertex_obj_obj.vertex_groups[groupRef.group].name
                             boneID = getBoneIndexByName("WMB", boneGroupName)
                             if boneID is None: # nonexistent group epic fail
+                                missingBones.add(boneGroupName)
                                 continue
                             if not wmb4:
                                 boneMapIndx = self.boneMap.index(boneID)
@@ -1600,6 +1603,8 @@ class c_vertexGroup(object):
                             boneWeights.append(weight)
                         
                         usableBoneWeightCount = len(boneWeights)
+                        if usableBoneWeightCount == 0:
+                            boneWeights.append(255)
                         
                         while len(boneWeights) < 4:
                             boneWeights.append(0)
@@ -1705,6 +1710,9 @@ class c_vertexGroup(object):
                     
                     vertexExData = [normal, uv_maps, color]
                     vertexesExData.append(vertexExData)
+                
+                if len(missingBones) > 0:
+                    print("The following bones were not found on the armature: %s" % ', '.join(list(missingBones)))
             #print(hex(len(vertexes)))
             
             return vertexes, vertexesExData
