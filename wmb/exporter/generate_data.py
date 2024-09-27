@@ -1823,6 +1823,7 @@ class c_vertexGroups(object):
             while i in allMeshGroupIDs:
                 i += 1
             obj['meshGroupIndex'] = i
+            allMeshGroupIDs.add(obj['meshGroupIndex'])
             meshGroupIDsByName[getRealName(obj.name)] = obj['meshGroupIndex']
         
         print("New mesh group IDs generated:")
