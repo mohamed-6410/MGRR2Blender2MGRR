@@ -10,9 +10,7 @@ import mathutils as mu
 
 def getRealName(name):
     splitname = name.split('-')
-    splitname.pop(0)
-    splitname.pop()
-    return '-'.join(splitname)
+    return '-'.join(splitname[1:-1])
 
 class c_batch(object):
     def __init__(self, obj, vertexGroupIndex, indexStart, prev_numVertexes, boneSetIndex, vertexStart=0):
@@ -203,6 +201,10 @@ class c_boneIndexTranslateTable(object):
                         print("Added new bone to table", bone.name, "assigning ID", bone['ID'], "at thirdLevel translateTableIndex", k)
                         newBones.append(bone)
                         break
+                if 'ID' not in bone:
+                    ShowMessageBox('Failed to make room in the bone index reverse lookup table for a new bone. Try adding more multiples of 16 in place of -1s in your armature secondLevel property.', 'Too Many Bones', 'ERROR')
+                    print("Failed to add ID to bone %s, there are %d bones total but only %d slots in the table." % (bone.name, len(getAllBonesInOrder("WMB")), len(newThirdLevel)))
+                    assert 'ID' in bone
 
         #Print the shit for the XML
         for bone in newBones:
@@ -261,6 +263,10 @@ class c_boneSet(object):
             for obj in bpy.data.collections['WMB'].all_objects:
                 if obj.type == 'ARMATURE':
                     for boneSet in obj.data['boneSetArray']:
+                        if max(boneSet) > 255:
+                            ShowMessageBox("Bone index %d outside of byte range, please reduce the number of bones in your model." % max(boneSet), "Too Many Bones", "ERROR")
+                            print("Bone index %d outside of byte range, please reduce the number of bones in your model." % max(boneSet))
+                            assert max(boneSet) <= 255
                         b_boneSets.append(boneSet)
             
             return b_boneSets
@@ -1458,6 +1464,8 @@ class c_vertexGroup(object):
                 if wmb4 and "Child Of" in bvertex_obj_obj.constraints:
                     bone = amt.data.bones[bvertex_obj_obj.constraints["Child Of"].subtarget]
                 
+                missingBones = set()
+                
                 for loop in sorted_loops:
                     if loop.vertex_index == previousIndex:
                         continue
@@ -1535,35 +1543,38 @@ class c_vertexGroup(object):
                     if self.vertexFlags in {7, 10, 11} or (wmb4 and vertexFormat & 0x30 == 0x30):
                         # Bone Indices
                         for groupRef in bvertex.groups:
-                            if len(boneIndexes) < 4:
-                                boneGroupName = bvertex_obj_obj.vertex_groups[groupRef.group].name
-                                boneID = getBoneIndexByName("WMB", boneGroupName)
-                                if boneID is None: # nonexistent group epic fail
-                                    continue
-                                if not wmb4:
-                                    boneMapIndx = self.boneMap.index(boneID)
-                                    boneSetIndx = boneSet.index(boneMapIndx)
-                                    boneIndexes.append(boneSetIndx)
-                                else:
-                                    try:
-                                        boneSetIndx = boneSet.index(boneID)
-                                    except: # bone not in set? well fuck that
-                                        for obj in bpy.data.collections['WMB'].all_objects:
-                                            if obj.type == 'ARMATURE':
-                                            
-                                                allbonesets = list(obj.data["boneSetArray"])
-                                                boneSet = list(allbonesets[bvertex_obj_obj["boneSetIndex"]])
-                                                if boneID not in boneSet:
-                                                    boneSet.append(boneID)
-                                                allbonesets[bvertex_obj_obj["boneSetIndex"]] = boneSet
-                                                obj.data["boneSetArray"] = allbonesets
-                                                boneSetIndx = boneSet.index(boneID) # i swear to god # !!!
-                                    
-                                    if boneSetIndx < 0 or boneSetIndx > 255:
-                                        print("Hmm, boneID of", boneSetIndx, "could be a problem...")
-                                        print(boneSet)
-                                    
-                                    boneIndexes.append(boneSetIndx)
+                            if len(boneIndexes) >= 4:
+                                break
+                            boneGroupName = bvertex_obj_obj.vertex_groups[groupRef.group].name
+                            boneID = getBoneIndexByName("WMB", boneGroupName)
+                            if boneID is None: # nonexistent group epic fail
+                                missingBones.add(boneGroupName)
+                                continue
+                            if not wmb4:
+                                boneMapIndx = self.boneMap.index(boneID)
+                                boneSetIndx = boneSet.index(boneMapIndx)
+                                boneIndexes.append(boneSetIndx)
+                            else:
+                                if boneID in boneSet:
+                                    boneSetIndx = boneSet.index(boneID)
+                                else: # bone not in set? well fuck that
+                                    for obj in bpy.data.collections['WMB'].all_objects:
+                                        if obj.type != 'ARMATURE':
+                                            continue
+                                        allbonesets = list(obj.data["boneSetArray"])
+                                        boneSet = list(allbonesets[bvertex_obj_obj["boneSetIndex"]])
+                                        if boneID not in boneSet:
+                                            boneSet.append(boneID)
+                                        allbonesets[bvertex_obj_obj["boneSetIndex"]] = boneSet
+                                        obj.data["boneSetArray"] = allbonesets
+                                        boneSetIndx = boneSet.index(boneID) # i swear to god # !!!
+                                        break
+                                
+                                if boneSetIndx < 0 or boneSetIndx > 255:
+                                    print("Hmm, boneID of", boneSetIndx, "could be a problem...")
+                                    print(boneSet)
+                                
+                                boneIndexes.append(boneSetIndx)
                         
                         if len(boneIndexes) == 0:
                             print(len(vertexes) ,"- Vertex Weights Error: Vertex has no assigned groups. At least 1 required. Try using Blender's [Select -> Select All By Trait > Ungrouped Verts] function to find them.")
@@ -1573,10 +1584,16 @@ class c_vertexGroup(object):
                         
                         # Bone Weights
                         weights = [group.weight for group in bvertex.groups]
-                        weightsSum = sum(weights)
 
                         if len(weights) >  4:
                             print(len(vertexes), "- Vertex Weights Error: Vertex has weights assigned to more than 4 groups. Try using Blender's [Weights -> Limit Total] function.")
+                            weights = weights[:4]
+                        
+                        if any([x < 0 for x in weights]):
+                            print(len(vertexes), "- Vertex Weights Error: Vertex has negative bone weights.")
+                            weights = [x if x > 0 else 0 for x in weights]
+                        
+                        weightsSum = sum(weights)
 
                         normalized_weights = []                                             # Force normalize the weights as Blender's normalization sometimes get some rounding issues.
                         for val in weights:
@@ -1586,23 +1603,47 @@ class c_vertexGroup(object):
                                 normalized_weights.append(0)
 
                         for val in normalized_weights:
-                            if len(boneWeights) < 4:
-                                weight = math.floor(val * 256.0)
-                                if val == 1.0:
-                                    weight = 255
-                                boneWeights.append(weight)
+                            if len(boneWeights) >= 4:
+                                break
+                            weight = math.floor(val * 256.0)
+                            if weight > 255:
+                                weight = 255
+                            boneWeights.append(weight)
+                        
+                        usableBoneWeightCount = len(boneWeights)
+                        if usableBoneWeightCount == 0:
+                            boneWeights.append(255)
                         
                         while len(boneWeights) < 4:
                             boneWeights.append(0)
+                        
+                        currentShiftWeight = 0
+                        stuckBones = set()
 
                         while sum(boneWeights) < 255:                     # MOAR checks to make sure weights are normalized but in bytes. (A bit cheating but these values should make such a minor impact.)
-                            boneWeights[0] += 1
+                            boneWeights[currentShiftWeight] += 1
+                            if boneWeights[currentShiftWeight] > 255:
+                                boneWeights[currentShiftWeight] = 255
+                                stuckBones.add(currentShiftWeight)
+                                if len(stuckBones) == usableBoneWeightCount: # ok what the fuck, but just avoid the infinite loop
+                                    break
+                            currentShiftWeight = (currentShiftWeight + 1) % usableBoneWeightCount # minimize impact on one particular weight with this stuff
 
+                        stuckBones = set()
+                        
                         while sum(boneWeights) > 255:                     
-                            boneWeights[0] -= 1
+                            boneWeights[currentShiftWeight] -= 1
+                            if boneWeights[currentShiftWeight] < 0:
+                                boneWeights[currentShiftWeight] = 0
+                                stuckBones.add(currentShiftWeight)
+                                if len(stuckBones) == usableBoneWeightCount: # ok what the fuck, but just avoid the infinite loop
+                                    break
+                            currentShiftWeight = (currentShiftWeight + 1) % usableBoneWeightCount # minimize impact on one particular weight with this stuff
 
                         if sum(boneWeights) != 255:                       # If EVEN the FORCED normalization doesn't work, say something :/
-                            print(len(vertexes), "- Vertex Weights Error: Vertex has a total weight not equal to 1.0. Try using Blender's [Weights -> Normalize All] function.") 
+                            print(len(vertexes), "- Vertex Weights Error: Vertex has a total weight not equal to 1.0. Try using Blender's [Weights -> Normalize All] function.")
+                        if not all([0 <= x < 256 for x in boneWeights]):
+                            print(len(vertexes), "- Vertex Weights Error: Vertex weight is outside the standard byte range, absolutely giving up now, enjoy your writing error")
 
                     color = []
                     if self.vertexFlags in {4, 5, 12, 14} or (wmb4 and vertexFormat >= 0x337):
@@ -1677,6 +1718,9 @@ class c_vertexGroup(object):
                     
                     vertexExData = [normal, uv_maps, color]
                     vertexesExData.append(vertexExData)
+                
+                if len(missingBones) > 0:
+                    print("The following bones were not found on the armature: %s" % ', '.join(list(missingBones)))
             #print(hex(len(vertexes)))
             
             return vertexes, vertexesExData
@@ -1740,11 +1784,12 @@ class c_vertexGroups(object):
         
         # Alright, before we do anything, let's fix the mess that is object IDs
         allMeshes = [obj for obj in bpy.data.collections['WMB'].all_objects if obj.type == 'MESH']
-        for obj in allMeshes:
+        for i, obj in enumerate(allMeshes):
             if 'ID' not in obj:
                 obj['ID'] = 900
             if 'batchGroup' in obj:
                 obj['ID'] += 1000 * obj['batchGroup'] # make sure it's sorted by batch group
+            obj['ID'] += i # thwart meshes with the same ID, might technically change some ordering
         
         allIDs = sorted([obj['ID'] for obj in allMeshes])
         allMeshes = sorted(allMeshes, key=lambda batch: batch['ID']) # sort
@@ -1756,7 +1801,7 @@ class c_vertexGroups(object):
         print([(obj.name, obj['ID']) for obj in allMeshes])
         
         # And mesh group IDs (grouping is based on name)
-        maxMeshGroupID = -1
+        allMeshGroupIDs = set()
         meshesWithNoMeshGroup = []
         meshGroupIDsByName = {}
         for obj in allMeshes:
@@ -1764,23 +1809,49 @@ class c_vertexGroups(object):
                 meshesWithNoMeshGroup.append(obj)
                 continue
             
+            if getRealName(obj.name) in meshGroupIDsByName: # already have it?
+                if meshGroupIDsByName[getRealName(obj.name)] == obj['meshGroupIndex']:
+                    continue # already have it
+                
+                # you go into the regeneration chamber
+                del obj['meshGroupIndex']
+                meshesWithNoMeshGroup.append(obj)
+                continue
+            
+            # ok let's add it to the 'already handled' group
             meshGroupIDsByName[getRealName(obj.name)] = obj['meshGroupIndex']
-            if obj['meshGroupIndex'] > maxMeshGroupID:
-                maxMeshGroupID = obj['meshGroupIndex']
+            allMeshGroupIDs.add(obj['meshGroupIndex'])
         
         for obj in meshesWithNoMeshGroup:
             if getRealName(obj.name) in meshGroupIDsByName:
                 obj['meshGroupIndex'] = meshGroupIDsByName[getRealName(obj.name)]
                 continue
             
-            maxMeshGroupID += 1
-            obj['meshGroupIndex'] = maxMeshGroupID
+            i = 0
+            while i in allMeshGroupIDs:
+                i += 1
+            obj['meshGroupIndex'] = i
+            allMeshGroupIDs.add(obj['meshGroupIndex'])
             meshGroupIDsByName[getRealName(obj.name)] = obj['meshGroupIndex']
         
         print("New mesh group IDs generated:")
         print([(obj.name, obj['meshGroupIndex']) for obj in allMeshes])
         
         # Bone set indexes handled earlier by c_b_boneSets
+        
+        # Material indexes lfg
+        # first, I made this helper function regenerate all the IDs, so we can just...
+        getUsedMaterials()
+        # don't even have to do anything with it, the IDs on the materials are good now
+        for obj in allMeshes:
+            if 'Materials' not in obj:
+                obj['Materials'] = [-1]
+            matCount = len(obj.material_slots)
+            if matCount > 0:
+                firstMat = obj.material_slots[0].material
+                obj['Materials'][0] = firstMat['ID']
+            else:
+                obj['Materials'][0] = 0 # idk probably safe-ish
         
         
         def get_vertexGroups(self, offsetVertexGroups):
